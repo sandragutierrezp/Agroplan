@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgroGuayas — Sistema de Planificación Agrícola</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Mono:wght@300;400;500&family=Lora:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --tierra:#1a1208;--tierra-mid:#2a1e0e;--tierra-light:#3d2d15;
+    --oro:#c8973a;--oro-light:#e8b84b;
+    --verde:#4a8c3f;--verde-bright:#6dbf5e;
+    --rojo:#c0392b;--amarillo:#e67e22;--azul:#2980b9;
+    --crema:#f5e6c8;--texto:#ede0c4;--texto-dim:#8a7a5a;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--tierra);color:var(--texto);font-family:'DM Mono',monospace;min-height:100vh;overflow-x:hidden;}
+  body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");pointer-events:none;z-index:1000;opacity:0.4;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+  @keyframes glow{0%,100%{box-shadow:0 0 12px rgba(200,151,58,0.3)}50%{box-shadow:0 0 24px rgba(200,151,58,0.5)}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* SIDEBAR */
+  .sidebar{position:fixed;left:0;top:0;bottom:0;width:220px;background:var(--tierra-mid);border-right:1px solid rgba(200,151,58,0.2);display:flex;flex-direction:column;z-index:100;}
+  .logo{padding:28px 24px 20px;border-bottom:1px solid rgba(200,151,58,0.15);}
+  .logo-title{font-family:'Playfair Display',serif;font-size:1.4rem;font-weight:700;color:var(--oro-light);line-height:1.1;}
+  .logo-sub{font-size:0.62rem;color:var(--texto-dim);letter-spacing:0.12em;text-transform:uppercase;margin-top:4px;}
+  .nav{padding:20px 0;flex:1;overflow-y:auto;}
+  .nav-section{font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--texto-dim);padding:12px 24px 6px;}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:10px 24px;cursor:pointer;font-size:0.78rem;color:var(--texto-dim);transition:all 0.2s;border-left:3px solid transparent;}
+  .nav-item:hover{color:var(--crema);background:rgba(200,151,58,0.05);}
+  .nav-item.active{color:var(--oro-light);border-left-color:var(--oro);background:rgba(200,151,58,0.08);}
+  .nav-icon{font-size:1rem;width:18px;text-align:center;}
+  .sidebar-footer{padding:16px 24px;border-top:1px solid rgba(200,151,58,0.15);font-size:0.65rem;color:var(--texto-dim);}
+  .sdot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;animation:pulse 2s infinite;}
+  .sdot.ok{background:var(--verde-bright);}
+  .sdot.loading{background:var(--amarillo);}
+  .sdot.err{background:var(--rojo);}
+
+  /* MAIN */
+  .main{margin-left:220px;padding:32px 36px;}
+  .page{display:none;animation:fadeIn 0.4s ease;}
+  .page.active{display:block;}
+
+  /* HEADER */
+  .hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:28px;}
+  .hdr-title{font-family:'Playfair Display',serif;font-size:2rem;font-weight:600;color:var(--crema);line-height:1.1;}
+  .hdr-sub{font-size:0.72rem;color:var(--texto-dim);margin-top:6px;}
+  .badge-clima{background:rgba(74,140,63,0.2);border:1px solid rgba(109,191,94,0.3);color:var(--verde-bright);padding:6px 14px;border-radius:20px;font-size:0.68rem;}
+
+  /* ALERT */
+  .abar{background:rgba(192,57,43,0.12);border:1px solid rgba(192,57,43,0.35);border-left:4px solid var(--rojo);border-radius:6px;padding:12px 18px;margin-bottom:24px;display:flex;align-items:center;gap:12px;font-size:0.75rem;}
+  .abar-txt{flex:1;color:#e8a090;}
+  .abar-txt strong{color:#ff8070;}
+
+  /* KPI */
+  .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;}
+  .kpi{background:var(--tierra-mid);border:1px solid rgba(200,151,58,0.15);border-radius:10px;padding:20px;position:relative;overflow:hidden;transition:border-color 0.2s;}
+  .kpi:hover{border-color:rgba(200,151,58,0.35);}
+  .kpi::after{content:'';position:absolute;top:0;right:0;width:60px;height:60px;background:radial-gradient(circle at top right,rgba(200,151,58,0.08),transparent 70%);}
+  .kpi-lbl{font-size:0.62rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--texto-dim);margin-bottom:10px;}
+  .kpi-val{font-family:'Playfair Display',serif;font-size:2rem;font-weight:700;color:var(--oro-light);line-height:1;}
+  .kpi-unit{font-size:0.9rem;font-weight:400;color:var(--oro);margin-left:2px;}
+  .kpi-ch{font-size:0.68rem;color:var(--texto-dim);margin-top:6px;}
+  .kpi-ch.up{color:var(--verde-bright);}
+  .kpi-ch.dn{color:#e07060;}
+
+  /* CARD */
+  .card{background:var(--tierra-mid);border:1px solid rgba(200,151,58,0.15);border-radius:10px;overflow:hidden;margin-bottom:20px;}
+  .card-hdr{padding:16px 20px;border-bottom:1px solid rgba(200,151,58,0.1);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+  .card-title{font-family:'Playfair Display',serif;font-size:0.95rem;color:var(--crema);}
+  .cbdg{font-size:0.62rem;letter-spacing:0.08em;padding:3px 10px;border-radius:12px;text-transform:uppercase;white-space:nowrap;}
+  .bverde{background:rgba(74,140,63,0.2);color:var(--verde-bright);border:1px solid rgba(109,191,94,0.25);}
+  .boro{background:rgba(200,151,58,0.15);color:var(--oro-light);border:1px solid rgba(200,151,58,0.25);}
+  .brojo{background:rgba(192,57,43,0.2);color:#e08070;border:1px solid rgba(192,57,43,0.3);}
+  .bamarillo{background:rgba(230,126,34,0.2);color:#f0a060;border:1px solid rgba(230,126,34,0.3);}
+  .bazul{background:rgba(41,128,185,0.2);color:#70b8e8;border:1px solid rgba(41,128,185,0.3);}
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  .g31{display:grid;grid-template-columns:2fr 1fr;gap:20px;}
+
+  /* MARKOV */
+  .mk-tabs{display:flex;gap:8px;padding:16px 20px 0;flex-wrap:wrap;}
+  .mk-tab{padding:6px 14px;border-radius:20px;font-size:0.68rem;cursor:pointer;transition:all 0.2s;border:1px solid rgba(200,151,58,0.2);color:var(--texto-dim);}
+  .mk-tab.active{background:var(--oro);color:var(--tierra);border-color:var(--oro);font-weight:500;}
+  .mk-tab:hover:not(.active){color:var(--crema);border-color:rgba(200,151,58,0.4);}
+  .mk-wrap{padding:16px 20px 20px;}
+  .mk-chain{display:flex;align-items:center;overflow-x:auto;padding:10px 0 12px;gap:0;}
+  .mk-node{display:flex;flex-direction:column;align-items:center;flex-shrink:0;}
+  .nc{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.2rem;position:relative;cursor:pointer;transition:transform 0.2s;}
+  .nc:hover{transform:scale(1.1);}
+  .nc.completed{background:rgba(74,140,63,0.25);border:2px solid var(--verde-bright);}
+  .nc.current{background:rgba(200,151,58,0.25);border:2px solid var(--oro-light);animation:glow 2s infinite;}
+  .nc.upcoming{background:rgba(255,255,255,0.04);border:2px solid rgba(255,255,255,0.1);}
+  .nc.riesgo{background:rgba(192,57,43,0.2);border:2px solid rgba(192,57,43,0.5);}
+  .nl{font-size:0.58rem;color:var(--texto-dim);margin-top:6px;text-align:center;max-width:60px;line-height:1.3;}
+  .nl.active{color:var(--oro-light);}
+  .np{font-size:0.62rem;color:var(--verde-bright);margin-top:2px;font-weight:500;}
+  .np.warn{color:var(--amarillo);}
+  .np.danger{color:#e07060;}
+  .mk-arrow{flex-shrink:0;width:32px;display:flex;align-items:center;margin-top:-22px;}
+  .arl{width:100%;height:2px;background:rgba(200,151,58,0.15);}
+  .arl.done{background:rgba(74,140,63,0.5);}
+  .arl.cur{background:rgba(200,151,58,0.4);}
+  .lam-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;}
+  .lchip{background:rgba(255,255,255,0.03);border:1px solid rgba(200,151,58,0.12);border-radius:6px;padding:8px 14px;font-size:0.65rem;}
+  .lchip .ll{color:var(--texto-dim);margin-bottom:3px;}
+  .lchip .lv{font-size:0.9rem;font-weight:500;}
+
+  /* PARCELAS */
+  .prow{display:grid;grid-template-columns:2fr 1.2fr 1fr 1fr 80px;align-items:center;padding:11px 20px;border-bottom:1px solid rgba(200,151,58,0.07);transition:background 0.15s;cursor:pointer;gap:10px;}
+  .prow:hover{background:rgba(200,151,58,0.04);}
+  .prow:last-child{border-bottom:none;}
+  .phdr{font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--texto-dim);cursor:default !important;}
+  .phdr:hover{background:transparent !important;}
+  .pname{font-size:0.78rem;color:var(--crema);}
+  .psub{font-size:0.62rem;color:var(--texto-dim);margin-top:2px;}
+  .ctag{display:inline-flex;align-items:center;gap:5px;font-size:0.68rem;padding:3px 10px;border-radius:12px;}
+  .t-arroz{background:rgba(200,151,58,0.15);color:var(--oro-light);}
+  .t-cacao{background:rgba(100,60,20,0.4);color:#c8a060;}
+  .t-banano{background:rgba(200,180,0,0.12);color:#d4c040;}
+  .t-maiz{background:rgba(220,160,40,0.15);color:#e0b050;}
+  .t-cana{background:rgba(60,120,40,0.2);color:#80c060;}
+  .pbar-wrap{display:flex;align-items:center;gap:8px;}
+  .pbar{flex:1;height:4px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden;}
+  .pfill{height:100%;border-radius:2px;}
+  .fverde{background:var(--verde-bright);}
+  .famarillo{background:var(--amarillo);}
+  .frojo{background:var(--rojo);}
+  .pval{font-size:0.7rem;font-weight:500;min-width:32px;text-align:right;}
+  .echip{font-size:0.6rem;padding:3px 8px;border-radius:4px;text-align:center;white-space:nowrap;}
+
+  /* ALERTAS */
+  .alist{padding:12px;display:flex;flex-direction:column;gap:8px;}
+  .aitem{display:flex;gap:10px;padding:10px 12px;border-radius:6px;font-size:0.72rem;align-items:flex-start;border:1px solid;}
+  .aroja{background:rgba(192,57,43,0.1);border-color:rgba(192,57,43,0.3);}
+  .aamarilla{background:rgba(230,126,34,0.1);border-color:rgba(230,126,34,0.25);}
+  .averde{background:rgba(74,140,63,0.1);border-color:rgba(74,140,63,0.25);}
+  .ai-icon{font-size:1rem;flex-shrink:0;margin-top:1px;}
+  .ai-title{font-weight:500;margin-bottom:2px;}
+  .aroja .ai-title{color:#e08070;}
+  .aamarilla .ai-title{color:#f0a060;}
+  .averde .ai-title{color:var(--verde-bright);}
+  .ai-desc{font-size:0.65rem;color:var(--texto-dim);line-height:1.4;}
+  .ai-time{font-size:0.58rem;color:var(--texto-dim);margin-top:4px;}
+
+  /* CANTONES */
+  .cgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:16px 20px;}
+  .ccard{background:rgba(255,255,255,0.03);border:1px solid rgba(200,151,58,0.12);border-radius:8px;padding:10px 12px;cursor:pointer;transition:all 0.2s;}
+  .ccard:hover{border-color:rgba(200,151,58,0.35);background:rgba(200,151,58,0.05);}
+  .cname{font-size:0.72rem;color:var(--crema);margin-bottom:6px;}
+  .cmet{font-size:0.62rem;color:var(--texto-dim);display:flex;justify-content:space-between;}
+  .crisk{width:100%;height:3px;border-radius:2px;margin-top:8px;}
+
+  /* CLIMA */
+  .clgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;}
+  .clcard{background:var(--tierra-mid);border:1px solid rgba(200,151,58,0.15);border-radius:10px;padding:16px;text-align:center;}
+  .clicon{font-size:2rem;margin-bottom:8px;}
+  .clval{font-family:'Playfair Display',serif;font-size:1.6rem;color:var(--crema);}
+  .clunit{font-size:0.75rem;color:var(--texto-dim);}
+  .cllbl{font-size:0.62rem;color:var(--texto-dim);text-transform:uppercase;letter-spacing:0.1em;margin-top:6px;}
+  .spinner{width:16px;height:16px;border:2px solid rgba(200,151,58,0.2);border-top-color:var(--oro);border-radius:50%;animation:spin 0.8s linear infinite;}
+  .loading-st{display:flex;align-items:center;gap:8px;font-size:0.75rem;color:var(--texto-dim);padding:20px;}
+
+  /* LOCATION BTNS */
+  .locsel{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;}
+  .locbtn{padding:7px 16px;border-radius:20px;font-size:0.7rem;cursor:pointer;transition:all 0.2s;border:1px solid rgba(200,151,58,0.2);color:var(--texto-dim);background:transparent;font-family:'DM Mono',monospace;}
+  .locbtn:hover{color:var(--crema);border-color:rgba(200,151,58,0.4);}
+  .locbtn.active{background:rgba(200,151,58,0.15);color:var(--oro-light);border-color:var(--oro);}
+
+  /* RAIN CHART */
+  .rcwrap{padding:16px 20px 20px;}
+  .rclegend{display:flex;gap:16px;margin-bottom:12px;font-size:0.62rem;color:var(--texto-dim);flex-wrap:wrap;}
+  .ldot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;}
+  .rca{height:120px;display:flex;align-items:flex-end;gap:3px;border-bottom:1px solid rgba(200,151,58,0.15);position:relative;}
+  .tline{position:absolute;left:0;right:0;border-top:1px dashed rgba(192,57,43,0.5);pointer-events:none;}
+  .rbcol{flex:1;display:flex;flex-direction:column;align-items:center;}
+  .rbar{width:100%;border-radius:2px 2px 0 0;min-height:2px;transition:height 0.6s ease;cursor:pointer;}
+  .rbar:hover{opacity:0.8;}
+  .rbar.fcast{opacity:0.45;border:1px solid;background:transparent !important;}
+  .rlabels{display:flex;margin-top:4px;}
+  .rlbl{flex:1;text-align:center;font-size:0.5rem;color:var(--texto-dim);}
+
+  /* HOURLY */
+  .hrow{display:flex;gap:8px;overflow-x:auto;padding:16px 20px;}
+  .hcard{flex-shrink:0;background:rgba(255,255,255,0.03);border:1px solid rgba(200,151,58,0.1);border-radius:8px;padding:10px 12px;text-align:center;min-width:68px;}
+  .htime{font-size:0.6rem;color:var(--texto-dim);margin-bottom:6px;}
+  .hico{font-size:1.3rem;margin-bottom:4px;}
+  .htemp{font-size:0.8rem;color:var(--crema);}
+  .hprec{font-size:0.65rem;color:#70b8e8;margin-top:3px;}
+
+  /* MAQUINARIA */
+  .mqhdr{display:grid;grid-template-columns:2fr 1fr 1fr 1.5fr 100px;gap:12px;padding:10px 20px;font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--texto-dim);border-bottom:1px solid rgba(200,151,58,0.1);}
+  .mqrow{display:grid;grid-template-columns:2fr 1fr 1fr 1.5fr 100px;gap:12px;padding:12px 20px;border-bottom:1px solid rgba(200,151,58,0.07);align-items:center;transition:background 0.15s;cursor:pointer;}
+  .mqrow:hover{background:rgba(200,151,58,0.04);}
+  .mqrow:last-child{border-bottom:none;}
+  .mqname{font-size:0.8rem;color:var(--crema);}
+  .mqsub{font-size:0.62rem;color:var(--texto-dim);margin-top:2px;}
+  .mqst{display:inline-flex;align-items:center;gap:6px;font-size:0.7rem;padding:4px 10px;border-radius:12px;}
+  .mqdis{background:rgba(74,140,63,0.15);color:var(--verde-bright);border:1px solid rgba(74,140,63,0.3);}
+  .mqocp{background:rgba(230,126,34,0.15);color:#f0a060;border:1px solid rgba(230,126,34,0.3);}
+  .mqmnt{background:rgba(192,57,43,0.15);color:#e08070;border:1px solid rgba(192,57,43,0.3);}
+
+  /* CALENDAR */
+  .calwrap{padding:16px 20px;}
+  .calweek{display:grid;grid-template-columns:90px repeat(7,1fr);gap:4px;margin-bottom:4px;}
+  .calhdr{font-size:0.62rem;color:var(--texto-dim);text-align:center;padding:6px 4px;}
+  .callbl{font-size:0.63rem;color:var(--crema);display:flex;align-items:center;padding-right:8px;white-space:nowrap;overflow:hidden;}
+  .cal{height:34px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:0.58rem;cursor:pointer;transition:all 0.15s;border:1px solid transparent;}
+  .cal.libre{background:rgba(255,255,255,0.03);border-color:rgba(200,151,58,0.08);color:var(--texto-dim);}
+  .cal.libre:hover{border-color:rgba(200,151,58,0.3);background:rgba(200,151,58,0.06);color:var(--oro-light);}
+  .cal.ocupado{background:rgba(230,126,34,0.18);border-color:rgba(230,126,34,0.35);color:#f0a060;}
+  .cal.mireserva{background:rgba(74,140,63,0.2);border-color:rgba(74,140,63,0.4);color:var(--verde-bright);}
+  .cal.conflicto{background:rgba(192,57,43,0.15);border-color:rgba(192,57,43,0.35);color:#e07060;font-size:0.5rem;}
+  .cal.mant{background:rgba(100,100,100,0.1);border-color:rgba(100,100,100,0.2);color:var(--texto-dim);font-size:0.5rem;}
+  .cal.today{box-shadow:inset 0 0 0 1px rgba(200,151,58,0.5);}
+
+  /* MODAL */
+  .moverlay{position:fixed;inset:0;background:rgba(10,8,4,0.85);z-index:500;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+  .moverlay.open{display:flex;}
+  .modal{background:var(--tierra-mid);border:1px solid rgba(200,151,58,0.25);border-radius:12px;padding:28px;width:420px;max-width:90vw;animation:fadeIn 0.3s ease;}
+  .modal-title{font-family:'Playfair Display',serif;font-size:1.1rem;color:var(--crema);margin-bottom:20px;}
+  .fg{margin-bottom:14px;}
+  .flbl{font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--texto-dim);margin-bottom:6px;display:block;}
+  .fsel,.finp{width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(200,151,58,0.2);border-radius:6px;padding:9px 12px;font-size:0.78rem;color:var(--crema);font-family:'DM Mono',monospace;transition:border-color 0.2s;}
+  .fsel:focus,.finp:focus{outline:none;border-color:rgba(200,151,58,0.5);}
+  .fsel option{background:var(--tierra-mid);}
+  .brow{display:flex;gap:10px;margin-top:20px;}
+  .btn{padding:10px 20px;border-radius:6px;font-size:0.75rem;cursor:pointer;font-family:'DM Mono',monospace;border:none;transition:all 0.2s;}
+  .btn-p{background:var(--oro);color:var(--tierra);font-weight:500;}
+  .btn-p:hover{background:var(--oro-light);}
+  .btn-s{background:rgba(255,255,255,0.05);color:var(--texto-dim);border:1px solid rgba(200,151,58,0.2);}
+  .btn-s:hover{color:var(--crema);}
+  .confban{background:rgba(192,57,43,0.12);border:1px solid rgba(192,57,43,0.35);border-radius:6px;padding:10px 14px;font-size:0.7rem;color:#e08070;display:none;margin-bottom:14px;}
+  .succban{background:rgba(74,140,63,0.12);border:1px solid rgba(74,140,63,0.35);border-radius:6px;padding:10px 14px;font-size:0.7rem;color:var(--verde-bright);display:none;margin-bottom:14px;}
+
+  /* TOOLTIP */
+  .tooltip{position:fixed;background:var(--tierra-light);border:1px solid rgba(200,151,58,0.3);border-radius:8px;padding:10px 14px;font-size:0.7rem;pointer-events:none;z-index:999;display:none;max-width:220px;}
+  .tooltip.vis{display:block;}
+  .tt-title{color:var(--oro-light);font-weight:500;margin-bottom:6px;font-family:'Playfair Display',serif;}
+  .ttr{display:flex;justify-content:space-between;gap:12px;color:var(--texto-dim);margin-top:3px;}
+  .ttr span:last-child{color:var(--crema);}
+
+  ::-webkit-scrollbar{width:4px;height:4px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:rgba(200,151,58,0.2);border-radius:2px;}
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="logo"><div class="logo-title">Agro<br>Guayas</div><div class="logo-sub">Sistema de Planificación</div></div>
+  <nav class="nav">
+    <div class="nav-section">Principal</div>
+    <div class="nav-item active" onclick="goPage('dashboard',this)"><span class="nav-icon">⊞</span> Dashboard</div>
+    <div class="nav-item" onclick="goPage('parcelas',this)"><span class="nav-icon">⬡</span> Mis Parcelas</div>
+    <div class="nav-item" onclick="goPage('markov',this)"><span class="nav-icon">◎</span> Cadena de Markov</div>
+    <div class="nav-section">Datos</div>
+    <div class="nav-item" onclick="goPage('clima',this)"><span class="nav-icon">⛅</span> Clima en Vivo</div>
+    <div class="nav-item"><span class="nav-icon">⚠</span> Alertas <span style="margin-left:auto;background:rgba(192,57,43,0.3);color:#e08070;padding:1px 7px;border-radius:10px;font-size:0.6rem;">3</span></div>
+    <div class="nav-section">Asociación</div>
+    <div class="nav-item" onclick="goPage('maquinaria',this)"><span class="nav-icon">🚜</span> Maquinaria</div>
+    <div class="nav-item"><span class="nav-icon">👥</span> Socios</div>
+    <div class="nav-item"><span class="nav-icon">💰</span> Finanzas</div>
+  </nav>
+  <div class="sidebar-footer">
+    <div><span class="sdot loading" id="sdot"></span><span id="sstatus">Conectando...</span></div>
+    <div style="margin-top:4px;">Asoc. El Progreso · Daule</div>
+  </div>
+</aside>
+
+<main class="main">
+
+<!-- ════════ DASHBOARD ════════ -->
+<div class="page active" id="page-dashboard">
+  <div class="hdr">
+    <div><div class="hdr-title">Panel de Control</div><div class="hdr-sub">Ciclo Invierno 2026 · Cantón Daule, Guayas</div></div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="badge-clima" id="climaBadge">🌧 Cargando clima...</div>
+      <div style="font-size:0.68rem;color:var(--texto-dim);" id="dateLbl"></div>
+    </div>
+  </div>
+  <div class="abar"><span style="font-size:1.1rem;">⚠️</span><span class="abar-txt"><strong>Alerta Climática — Salitre y Daule:</strong> Precipitación acumulada 14d supera umbral histórico en 38%. Parcelas en S3 con riesgo elevado de anegamiento.</span><span style="cursor:pointer;color:var(--texto-dim);" onclick="this.parentElement.style.display='none'">✕</span></div>
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-lbl">Hectáreas Activas</div><div class="kpi-val">847<span class="kpi-unit">ha</span></div><div class="kpi-ch up">↑ 12% vs ciclo anterior</div></div>
+    <div class="kpi"><div class="kpi-lbl">Socios Activos</div><div class="kpi-val">124</div><div class="kpi-ch">32 parcelas monitoreadas</div></div>
+    <div class="kpi"><div class="kpi-lbl">Prob. Cosecha Óptima</div><div class="kpi-val">67<span class="kpi-unit">%</span></div><div class="kpi-ch dn">↓ 11% por lluvias</div></div>
+    <div class="kpi"><div class="kpi-lbl">Lluvia Hoy · Daule</div><div class="kpi-val" id="kpiLluvia">—<span class="kpi-unit">mm</span></div><div class="kpi-ch" id="kpiLluviaLbl">Consultando API...</div></div>
+  </div>
+  <div class="card">
+    <div class="card-hdr"><div class="card-title">Cadena de Markov — Parcela #14 Lote Norte</div><div style="display:flex;gap:8px;flex-wrap:wrap;"><span class="cbdg boro">Arroz INIAP-14</span><span class="cbdg bamarillo">⚠ Riesgo Moderado</span></div></div>
+    <div class="mk-tabs" id="dTabs">
+      <div class="mk-tab active" onclick="setMkTab('dTabs','dChain','dLam',this,'arroz')">🌾 Arroz</div>
+      <div class="mk-tab" onclick="setMkTab('dTabs','dChain','dLam',this,'cacao')">🍫 Cacao</div>
+      <div class="mk-tab" onclick="setMkTab('dTabs','dChain','dLam',this,'banano')">🍌 Banano</div>
+      <div class="mk-tab" onclick="setMkTab('dTabs','dChain','dLam',this,'maiz')">🌽 Maíz</div>
+      <div class="mk-tab" onclick="setMkTab('dTabs','dChain','dLam',this,'cana')">🎋 Caña</div>
+    </div>
+    <div class="mk-wrap"><div class="mk-chain" id="dChain"></div><div class="lam-row" id="dLam"></div></div>
+  </div>
+  <div class="g31">
+    <div class="card">
+      <div class="card-hdr"><div class="card-title">Parcelas Monitoreadas</div><span class="cbdg boro">6 de 32</span></div>
+      <div class="prow phdr"><div>Parcela / Socio</div><div>Cultivo · Estado</div><div>Días</div><div>Prob.</div><div>Alerta</div></div>
+      <div id="pBody1"></div>
+    </div>
+    <div class="card">
+      <div class="card-hdr"><div class="card-title">Alertas Activas</div><span class="cbdg brojo">3 urgentes</span></div>
+      <div class="alist">
+        <div class="aitem aroja"><span class="ai-icon">🌧</span><div><div class="ai-title">Exceso hídrico crítico</div><div class="ai-desc">Salitre — Hacienda El Pital. 298mm/14d (+89% umbral).</div><div class="ai-time">Hace 2h · Open-Meteo</div></div></div>
+        <div class="aitem aroja"><span class="ai-icon">🍄</span><div><div class="ai-title">Riesgo de Piricularia</div><div class="ai-desc">3 parcelas Daule. HR &gt;90% por 6 días. Fungicida urgente.</div><div class="ai-time">Hace 5h · λ_plaga</div></div></div>
+        <div class="aitem aamarilla"><span class="ai-icon">🚜</span><div><div class="ai-title">Conflicto maquinaria</div><div class="ai-desc">Cosechadora #2 solicitada por 2 socios el 24 Feb.</div><div class="ai-time">Hace 1h · Sistema</div></div></div>
+        <div class="aitem averde"><span class="ai-icon">✅</span><div><div class="ai-title">Cacao Yaguachi — OK</div><div class="ai-desc">Sin moniliasis activa. Cosecha en rango ideal.</div><div class="ai-time">06:00h · CHIRPS</div></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-hdr"><div class="card-title">Cantones del Guayas — Índice de Riesgo Climático</div><span class="cbdg bazul">Datos en vivo</span></div>
+    <div class="cgrid">
+      <div class="ccard"><div class="cname">Daule</div><div class="cmet"><span>Arroz · 18.400ha</span><span style="color:#f0a060;">Media</span></div><div class="crisk" style="background:linear-gradient(90deg,#e67e22 68%,rgba(255,255,255,0.05) 68%);"></div></div>
+      <div class="ccard"><div class="cname">Salitre</div><div class="cmet"><span>Arroz · 12.100ha</span><span style="color:#e07060;">Alta</span></div><div class="crisk" style="background:linear-gradient(90deg,#c0392b 85%,rgba(255,255,255,0.05) 85%);"></div></div>
+      <div class="ccard"><div class="cname">Samborondón</div><div class="cmet"><span>Arroz · 8.200ha</span><span style="color:#e07060;">Alta</span></div><div class="crisk" style="background:linear-gradient(90deg,#c0392b 78%,rgba(255,255,255,0.05) 78%);"></div></div>
+      <div class="ccard"><div class="cname">Pedro Carbo</div><div class="cmet"><span>Maíz · 6.500ha</span><span style="color:var(--verde-bright);">Baja</span></div><div class="crisk" style="background:linear-gradient(90deg,#4a8c3f 28%,rgba(255,255,255,0.05) 28%);"></div></div>
+      <div class="ccard"><div class="cname">Yaguachi</div><div class="cmet"><span>Cacao · 4.800ha</span><span style="color:var(--verde-bright);">Baja</span></div><div class="crisk" style="background:linear-gradient(90deg,#4a8c3f 22%,rgba(255,255,255,0.05) 22%);"></div></div>
+      <div class="ccard"><div class="cname">Milagro</div><div class="cmet"><span>Caña · 22.000ha</span><span style="color:#f0a060;">Media</span></div><div class="crisk" style="background:linear-gradient(90deg,#e67e22 55%,rgba(255,255,255,0.05) 55%);"></div></div>
+      <div class="ccard"><div class="cname">Santa Lucía</div><div class="cmet"><span>Arroz · 7.300ha</span><span style="color:#f0a060;">Media</span></div><div class="crisk" style="background:linear-gradient(90deg,#e67e22 60%,rgba(255,255,255,0.05) 60%);"></div></div>
+      <div class="ccard"><div class="cname">Simón Bolívar</div><div class="cmet"><span>Cacao · 3.200ha</span><span style="color:var(--verde-bright);">Baja</span></div><div class="crisk" style="background:linear-gradient(90deg,#4a8c3f 30%,rgba(255,255,255,0.05) 30%);"></div></div>
+      <div class="ccard"><div class="cname">Balzar</div><div class="cmet"><span>Maíz · 5.100ha</span><span style="color:var(--verde-bright);">Baja</span></div><div class="crisk" style="background:linear-gradient(90deg,#4a8c3f 25%,rgba(255,255,255,0.05) 25%);"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ CLIMA ════════ -->
+<div class="page" id="page-clima">
+  <div class="hdr"><div><div class="hdr-title">Clima en Vivo</div><div class="hdr-sub">Open-Meteo API · Datos reales · Actualización automática</div></div><div class="badge-clima" id="climaUpd">Cargando...</div></div>
+  <div class="locsel" id="locsel">
+    <button class="locbtn active" onclick="selLoc(this,-1.8541,-79.9936,'Daule')">📍 Daule</button>
+    <button class="locbtn" onclick="selLoc(this,-2.0272,-79.7328,'Salitre')">📍 Salitre</button>
+    <button class="locbtn" onclick="selLoc(this,-1.9700,-79.7200,'Samborondón')">📍 Samborondón</button>
+    <button class="locbtn" onclick="selLoc(this,-1.8000,-80.2500,'Pedro Carbo')">📍 Pedro Carbo</button>
+    <button class="locbtn" onclick="selLoc(this,-2.1181,-79.6897,'Yaguachi')">📍 Yaguachi</button>
+    <button class="locbtn" onclick="selLoc(this,-2.1347,-79.5872,'Milagro')">📍 Milagro</button>
+    <button class="locbtn" onclick="selLoc(this,-1.7833,-79.9667,'Santa Lucía')">📍 Santa Lucía</button>
+  </div>
+  <div class="clgrid" id="clCards"><div class="clcard" style="grid-column:span 4;"><div class="loading-st"><div class="spinner"></div>Consultando Open-Meteo API...</div></div></div>
+  <div class="card">
+    <div class="card-hdr"><div class="card-title">Pronóstico Horario — Próximas 24h</div><span class="cbdg bazul" id="locBadge">Daule</span></div>
+    <div class="hrow" id="hrow"><div class="loading-st"><div class="spinner"></div>Cargando...</div></div>
+  </div>
+  <div class="card">
+    <div class="card-hdr"><div class="card-title">Precipitación Diaria — 14 días historial + 16 días pronóstico</div><span class="cbdg bazul">Open-Meteo · Tiempo Real</span></div>
+    <div class="rcwrap">
+      <div class="rclegend"><span><span class="ldot" style="background:var(--verde-bright);"></span>Observado</span><span><span class="ldot" style="background:rgba(100,160,255,0.6);"></span>Pronóstico</span><span><span class="ldot" style="background:var(--rojo);border-radius:0;height:1px;width:16px;margin-bottom:4px;"></span>Umbral riesgo 20mm/d</span></div>
+      <div class="rca" id="rchart"><div class="tline" style="bottom:33.3%;"></div><div class="loading-st"><div class="spinner"></div>Cargando datos...</div></div>
+      <div class="rlabels" id="rlabels"></div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="card"><div class="card-hdr"><div class="card-title">λ_clima Calculado en Tiempo Real</div><span class="cbdg bamarillo">Ajuste Markov</span></div><div style="padding:20px;" id="lamCalc"><div class="loading-st"><div class="spinner"></div>Calculando...</div></div></div>
+    <div class="card"><div class="card-hdr"><div class="card-title">Lluvia Acumulada 7d por Cantón</div><span class="cbdg boro">Comparativa</span></div><div style="padding:16px 20px;" id="canComp"><div class="loading-st"><div class="spinner"></div>Cargando...</div></div></div>
+  </div>
+</div>
+
+<!-- ════════ MAQUINARIA ════════ -->
+<div class="page" id="page-maquinaria">
+  <div class="hdr"><div><div class="hdr-title">Maquinaria Compartida</div><div class="hdr-sub">Reservas, disponibilidad y detección de conflictos · Asociación El Progreso</div></div><button class="btn btn-p" onclick="openMod()">+ Nueva Reserva</button></div>
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-lbl">Equipos Totales</div><div class="kpi-val">8</div><div class="kpi-ch">5 disponibles hoy</div></div>
+    <div class="kpi"><div class="kpi-lbl">Reservas Esta Semana</div><div class="kpi-val" id="kpiReservas">3</div><div class="kpi-ch up">Confirmadas</div></div>
+    <div class="kpi"><div class="kpi-lbl">Conflictos</div><div class="kpi-val" style="color:#e07060;">1</div><div class="kpi-ch dn">Requiere resolución</div></div>
+    <div class="kpi"><div class="kpi-lbl">Utilización</div><div class="kpi-val">74<span class="kpi-unit">%</span></div><div class="kpi-ch">Ciclo actual</div></div>
+  </div>
+  <div class="card">
+    <div class="card-hdr"><div class="card-title">Inventario de Equipos</div><span class="cbdg bverde">8 registrados</span></div>
+    <div class="mqhdr"><div>Equipo</div><div>Tipo</div><div>Estado</div><div>Próxima Reserva</div><div>Acción</div></div>
+    <div id="mqInv"></div>
+  </div>
+  <div class="card">
+    <div class="card-hdr"><div class="card-title">Calendario de Reservas — Próximos 7 días</div><div style="display:flex;gap:8px;flex-wrap:wrap;"><span class="cbdg bverde">■ Mi reserva</span><span class="cbdg bamarillo">■ Ocupado</span><span class="cbdg brojo">■ Conflicto</span></div></div>
+    <div class="calwrap" id="calWrap"></div>
+  </div>
+  <div class="card" style="margin-top:0;">
+    <div class="card-hdr"><div class="card-title">Mis Reservas Activas</div><span class="cbdg boro" id="resCount">3 confirmadas</span></div>
+    <div style="padding:16px 20px;display:flex;flex-direction:column;gap:10px;" id="misRes"></div>
+  </div>
+</div>
+
+<!-- ════════ PARCELAS ════════ -->
+<div class="page" id="page-parcelas">
+  <div class="hdr"><div><div class="hdr-title">Mis Parcelas</div><div class="hdr-sub">32 parcelas activas · Ciclo Invierno 2026</div></div></div>
+  <div class="card">
+    <div class="card-hdr"><div class="card-title">Todas las Parcelas</div><span class="cbdg boro">32 activas</span></div>
+    <div class="prow phdr"><div>Parcela / Socio</div><div>Cultivo · Estado</div><div>Días</div><div>Prob.</div><div>Alerta</div></div>
+    <div id="pBody2"></div>
+  </div>
+</div>
+
+<!-- ════════ MARKOV DETALLE ════════ -->
+<div class="page" id="page-markov">
+  <div class="hdr"><div><div class="hdr-title">Cadena de Markov</div><div class="hdr-sub">Análisis por cultivo · Ajustada con datos climáticos en tiempo real</div></div></div>
+  <div class="card">
+    <div class="card-hdr"><div class="card-title">Modelo Dinámico por Cultivo</div><span class="cbdg bazul">λ actualizados con Open-Meteo</span></div>
+    <div class="mk-tabs" id="mTabs">
+      <div class="mk-tab active" onclick="setMkTab('mTabs','mChain','mLam',this,'arroz')">🌾 Arroz</div>
+      <div class="mk-tab" onclick="setMkTab('mTabs','mChain','mLam',this,'cacao')">🍫 Cacao</div>
+      <div class="mk-tab" onclick="setMkTab('mTabs','mChain','mLam',this,'banano')">🍌 Banano</div>
+      <div class="mk-tab" onclick="setMkTab('mTabs','mChain','mLam',this,'maiz')">🌽 Maíz</div>
+      <div class="mk-tab" onclick="setMkTab('mTabs','mChain','mLam',this,'cana')">🎋 Caña</div>
+    </div>
+    <div class="mk-wrap"><div class="mk-chain" id="mChain"></div><div class="lam-row" id="mLam"></div></div>
+  </div>
+</div>
+
+</main>
+
+<!-- MODAL -->
+<div class="moverlay" id="moverlay">
+  <div class="modal">
+    <div class="modal-title">📅 Nueva Reserva de Equipo</div>
+    <div class="confban" id="confBan">⚠ Conflicto detectado: este equipo ya tiene reserva en esa fecha. Elige otra fecha o coordina con el socio responsable.</div>
+    <div class="succban" id="succBan">✅ Reserva registrada correctamente.</div>
+    <div class="fg"><label class="flbl">Equipo</label>
+      <select class="fsel" id="mEq" onchange="chkConf()">
+        <option value="">Seleccionar equipo...</option>
+        <option value="1">🌾 Cosechadora John Deere S660 #1</option>
+        <option value="2">🌾 Cosechadora Claas Lexion #2</option>
+        <option value="3">🚛 Tractor Case IH Magnum #1</option>
+        <option value="4">🚛 Tractor New Holland T7 #2</option>
+        <option value="5">🚚 Camión Hino 500 #1</option>
+        <option value="6">🚚 Camión Hino 500 #2</option>
+        <option value="7">💧 Bomba de Riego #1</option>
+        <option value="8">🌊 Sistema Drenaje #1</option>
+      </select>
+    </div>
+    <div class="fg"><label class="flbl">Parcela</label>
+      <select class="fsel" id="mParc">
+        <option value="14">Lote Norte #14 — Luis Tomalá (Daule)</option>
+        <option value="7">Hacienda El Pital #07 — Dora Cedeño (Salitre)</option>
+        <option value="22">Finca Morales #22 — Jorge Morales (Yaguachi)</option>
+        <option value="3">Lote Sur #03 — Carmen Vera (Daule)</option>
+        <option value="19">Parcela Baja #19 — Rafael Orrala (Santa Lucía)</option>
+        <option value="31">Ingenio Norte #31 — Asoc. El Progreso (Milagro)</option>
+      </select>
+    </div>
+    <div class="fg"><label class="flbl">Fecha de inicio</label><input type="date" class="finp" id="mFecha" onchange="chkConf()"></div>
+    <div class="fg"><label class="flbl">Duración</label>
+      <select class="fsel" id="mDur"><option value="1">1 día</option><option value="2">2 días</option><option value="3">3 días</option><option value="5">5 días</option></select>
+    </div>
+    <div class="fg"><label class="flbl">Motivo</label>
+      <select class="fsel" id="mMotivo"><option>Cosecha</option><option>Preparación de suelo</option><option>Transporte de producción</option><option>Riego de emergencia</option><option>Drenaje de emergencia</option></select>
+    </div>
+    <div class="brow">
+      <button class="btn btn-p" onclick="confRes()">Confirmar</button>
+      <button class="btn btn-s" onclick="closeMod()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="tooltip" id="tt"><div class="tt-title" id="tt-t"></div><div class="ttr"><span>Cultivo</span><span id="tt-c"></span></div><div class="ttr"><span>Estado</span><span id="tt-e"></span></div><div class="ttr"><span>Días</span><span id="tt-d"></span></div><div class="ttr"><span>Prob.</span><span id="tt-p"></span></div><div class="ttr"><span>Riesgo</span><span id="tt-r"></span></div></div>
+
+<script>
+// ─── DATA ───
+const CH={
+  arroz:{nodes:[{l:'Prep.\nSuelo',i:'🪱',s:'completed',p:null},{l:'Siembra',i:'🌱',s:'completed',p:null},{l:'Germi-\nnación',i:'🌿',s:'completed',p:'88%'},{l:'Maco-\nllamiento',i:'🌾',s:'current',p:'↓63%'},{l:'Enca-\nñamiento',i:'📏',s:'upcoming',p:'84%'},{l:'Floración',i:'🌸',s:'upcoming',p:'86%'},{l:'Llenado\nGrano',i:'💧',s:'upcoming',p:'89%'},{l:'Madu-\nración',i:'⏳',s:'upcoming',p:'91%'},{l:'Cosecha\nÓptima',i:'✅',s:'upcoming',p:null},{l:'Pérdida\nParcial',i:'⚠️',s:'riesgo',p:null}],lam:{cl:0.71,pl:0.95,ma:1.05,su:0.88,res:'63%',cos:'12–24 Mar'}},
+  cacao:{nodes:[{l:'Poda',i:'✂️',s:'completed',p:null},{l:'Floración',i:'🌺',s:'completed',p:null},{l:'Cuajado',i:'🫘',s:'completed',p:'82%'},{l:'Desa-\nrrollo',i:'🍫',s:'current',p:'79%'},{l:'Engro-\nsamiento',i:'📦',s:'upcoming',p:'85%'},{l:'Madu-\nración',i:'🟤',s:'upcoming',p:'88%'},{l:'Cosecha',i:'✅',s:'upcoming',p:null},{l:'Moniliasis\nRiesgo',i:'🍄',s:'riesgo',p:null}],lam:{cl:0.92,pl:0.71,ma:1.02,su:0.95,res:'79%',cos:'05–15 Mar'}},
+  banano:{nodes:[{l:'Dife-\nrenciación',i:'🌿',s:'completed',p:null},{l:'Emisión\nFloral',i:'🌼',s:'completed',p:null},{l:'Enfunde',i:'🛍',s:'completed',p:'90%'},{l:'Engro-\nsamiento',i:'🍌',s:'current',p:'84%'},{l:'Calibre\nÓptimo',i:'📐',s:'upcoming',p:'88%'},{l:'Corte\nÓptimo',i:'✅',s:'upcoming',p:null},{l:'Rechazo\nEmpac.',i:'❌',s:'riesgo',p:null}],lam:{cl:0.98,pl:0.90,ma:1.08,su:1.00,res:'84%',cos:'28 Feb–05 Mar'}},
+  maiz:{nodes:[{l:'Prep.\nSuelo',i:'🪱',s:'completed',p:null},{l:'Siembra',i:'🌱',s:'completed',p:null},{l:'Germi-\nnación',i:'🌿',s:'current',p:'↓58%'},{l:'Desa-\nrrollo V',i:'🌽',s:'upcoming',p:'82%'},{l:'Floración',i:'🌸',s:'upcoming',p:'85%'},{l:'Llenado',i:'💛',s:'upcoming',p:'87%'},{l:'Secado\nGrano',i:'☀️',s:'upcoming',p:'90%'},{l:'Cosecha',i:'✅',s:'upcoming',p:null},{l:'Pérdida\nCogollero',i:'⚠️',s:'riesgo',p:null}],lam:{cl:0.68,pl:0.85,ma:0.98,su:0.80,res:'58%',cos:'15–28 Abr'}},
+  cana:{nodes:[{l:'Siembra\nEstaca',i:'🎋',s:'completed',p:null},{l:'Brotación',i:'🌱',s:'completed',p:null},{l:'Maco-\nllamiento',i:'🌿',s:'completed',p:'91%'},{l:'Elonga-\nción',i:'📏',s:'completed',p:'89%'},{l:'Madu-\nración',i:'⏳',s:'current',p:'88%'},{l:'Estrés\nHídrico',i:'💧',s:'upcoming',p:'85%'},{l:'Zafra\nÓptima',i:'✅',s:'upcoming',p:null}],lam:{cl:0.88,pl:0.97,ma:1.05,su:0.92,res:'88%',cos:'10–25 Abr'}}
+};
+
+const PARC=[
+  {n:'Lote Norte · #14',sub:'Luis Tomalá · Daule · 8.5ha',ct:'arroz',em:'🌾',tc:'t-arroz',est:'S3 Macollamiento',d:'~42d',pr:63,ri:'Media',ac:'bamarillo',at:'⚠ Media'},
+  {n:'Hacienda El Pital · #07',sub:'Dora Cedeño · Salitre · 14ha',ct:'arroz',em:'🌾',tc:'t-arroz',est:'S5 Floración',d:'~22d',pr:41,ri:'Alta',ac:'brojo',at:'🔴 Alta'},
+  {n:'Finca Morales · #22',sub:'Jorge Morales · Yaguachi · 6ha',ct:'cacao',em:'🍫',tc:'t-cacao',est:'S4 Engrosamiento',d:'~31d',pr:79,ri:'Baja',ac:'bverde',at:'✓ Baja'},
+  {n:'Lote Sur · #03',sub:'Carmen Vera · Daule · 11ha',ct:'banano',em:'🍌',tc:'t-banano',est:'Engrosamiento racimo',d:'~18d',pr:84,ri:'Baja',ac:'bverde',at:'✓ Baja'},
+  {n:'Parcela Baja · #19',sub:'Rafael Orrala · Santa Lucía · 9ha',ct:'maiz',em:'🌽',tc:'t-maiz',est:'S2 Germinación',d:'~78d',pr:58,ri:'Media',ac:'bamarillo',at:'⚠ Media'},
+  {n:'Ingenio Norte · #31',sub:'Asoc. El Progreso · Milagro · 22ha',ct:'cana',em:'🎋',tc:'t-cana',est:'S6 Maduración',d:'~55d',pr:88,ri:'Baja',ac:'bverde',at:'✓ Baja'},
+];
+
+const MAQ=[
+  {id:'1',name:'Cosechadora John Deere S660',num:'#1',tipo:'Cosechadora',st:'ocupada',next:'Luis Tomalá · 20 Feb',ico:'🌾'},
+  {id:'2',name:'Cosechadora Claas Lexion',num:'#2',tipo:'Cosechadora',st:'disponible',next:'Dora Cedeño · 24 Feb',ico:'🌾'},
+  {id:'3',name:'Tractor Case IH Magnum',num:'#1',tipo:'Tractor',st:'disponible',next:'Sin reservas',ico:'🚛'},
+  {id:'4',name:'Tractor New Holland T7',num:'#2',tipo:'Tractor',st:'mantenimiento',next:'Disponible 22 Feb',ico:'🚛'},
+  {id:'5',name:'Camión Hino 500',num:'#1',tipo:'Transporte',st:'disponible',next:'Sin reservas',ico:'🚚'},
+  {id:'6',name:'Camión Hino 500',num:'#2',tipo:'Transporte',st:'ocupada',next:'Carmen Vera · 19 Feb',ico:'🚚'},
+  {id:'7',name:'Bomba de Riego',num:'#1',tipo:'Riego',st:'disponible',next:'Sin reservas',ico:'💧'},
+  {id:'8',name:'Sistema Drenaje',num:'#1',tipo:'Drenaje',st:'disponible',next:'Sin reservas',ico:'🌊'},
+];
+
+let reservas=[
+  {eq:'Cosechadora JD S660 #1',parc:'Lote Norte #14',fecha:'20 Feb 2026',dias:'1',motivo:'Cosecha',eqId:'1'},
+  {eq:'Tractor Case IH #1',parc:'Parcela Baja #19',fecha:'22 Feb 2026',dias:'2',motivo:'Preparación de suelo',eqId:'3'},
+  {eq:'Camión Hino #1',parc:'Ingenio Norte #31',fecha:'25 Feb 2026',dias:'1',motivo:'Transporte de producción',eqId:'5'},
+];
+
+// ─── NAVIGATION ───
+function goPage(id,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  if(el)el.classList.add('active');
+  if(id==='clima')loadClima();
+  if(id==='maquinaria')renderMaq();
+}
+
+// ─── MARKOV ───
+function mkRender(chainId,lamId,cult){
+  const ch=CH[cult];
+  const c=document.getElementById(chainId);c.innerHTML='';
+  const ci=ch.nodes.findIndex(n=>n.s==='current');
+  ch.nodes.forEach((nd,i)=>{
+    const el=document.createElement('div');el.className='mk-node';
+    const pw=nd.p&&nd.p.startsWith('↓')?'warn':'';
+    const pd=nd.p?nd.p.replace('↓',''):'';
+    el.innerHTML=`<div class="nc ${nd.s}">${nd.s==='completed'?'<span style="position:absolute;top:-4px;right:-4px;font-size:0.55rem;background:var(--verde);border-radius:50%;width:14px;height:14px;display:flex;align-items:center;justify-content:center;">✓</span>':''}<span style="font-size:1.2rem;">${nd.i}</span></div><div class="nl ${nd.s==='current'?'active':''}">${nd.l.replace('\n','<br>')}</div>${nd.p?`<div class="np ${pw}">${pd}</div>`:'<div style="height:14px"></div>'}`;
+    c.appendChild(el);
+    if(i<ch.nodes.length-1){const a=document.createElement('div');a.className='mk-arrow';const lc=i<ci?'done':i===ci?'cur':'';a.innerHTML=`<div class="arl ${lc}"></div>`;c.appendChild(a);}
+  });
+  const L=ch.lam,lc=document.getElementById(lamId);if(!lc)return;
+  const col=v=>v>=1?'var(--verde-bright)':v>=0.85?'var(--verde-bright)':v>=0.70?'#f0a060':'#e07060';
+  lc.innerHTML=`<div class="lchip"><div class="ll">λ_clima</div><div class="lv" style="color:${col(L.cl)}">${L.cl}</div></div><div class="lchip"><div class="ll">λ_plaga</div><div class="lv" style="color:${col(L.pl)}">${L.pl}</div></div><div class="lchip"><div class="ll">λ_manejo</div><div class="lv" style="color:${col(L.ma)}">${L.ma}</div></div><div class="lchip"><div class="ll">λ_suelo</div><div class="lv" style="color:${col(L.su)}">${L.su}</div></div><div class="lchip"><div class="ll">P' cosecha óptima</div><div class="lv" style="color:#f0a060">${L.res}</div></div><div class="lchip" style="margin-left:auto;border-color:rgba(74,140,63,0.3);background:rgba(74,140,63,0.08)"><div class="ll">Cosecha estimada</div><div class="lv" style="color:var(--verde-bright)">${L.cos}</div></div>`;
+}
+function setMkTab(tabsId,chainId,lamId,el,cult){
+  document.querySelectorAll('#'+tabsId+' .mk-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');mkRender(chainId,lamId,cult);
+}
+
+// ─── PARCELAS ───
+function pHTML(p){
+  const fc=p.pr>=75?'fverde':p.pr>=55?'famarillo':'frojo';
+  const vc=p.pr>=75?'var(--verde-bright)':p.pr>=55?'#f0a060':'#e07060';
+  return `<div class="prow" onclick="showTT(event,'${p.n}','${p.em} ${p.ct}','${p.est}','${p.d}','${p.pr}%','${p.ri}')"><div><div class="pname">${p.n}</div><div class="psub">${p.sub}</div></div><div><span class="ctag ${p.tc}">${p.em} ${p.ct}</span><div class="psub" style="margin-top:4px">${p.est}</div></div><div style="font-size:0.8rem;color:var(--crema)">${p.d}</div><div><div class="pbar-wrap"><div class="pbar"><div class="pfill ${fc}" style="width:${p.pr}%"></div></div><div class="pval" style="color:${vc}">${p.pr}%</div></div></div><div><span class="echip ${p.ac}">${p.at}</span></div></div>`;
+}
+function renderParcelas(){
+  const b1=document.getElementById('pBody1'),b2=document.getElementById('pBody2');
+  const h=PARC.map(pHTML).join('');
+  if(b1)b1.innerHTML=h;if(b2)b2.innerHTML=h;
+}
+
+// ─── MAQUINARIA ───
+function renderMaq(){
+  const inv=document.getElementById('mqInv');
+  inv.innerHTML=MAQ.map(m=>{
+    const sc=m.st==='disponible'?'mqdis':m.st==='ocupada'?'mqocp':'mqmnt';
+    const sl=m.st==='disponible'?'✅ Disponible':m.st==='ocupada'?'⏳ Ocupada':'🔧 Mantenimiento';
+    return `<div class="mqrow"><div><div class="mqname">${m.ico} ${m.name}</div><div class="mqsub">${m.num}</div></div><div style="font-size:0.75rem;color:var(--texto-dim)">${m.tipo}</div><div><span class="mqst ${sc}">${sl}</span></div><div style="font-size:0.72rem;color:var(--texto-dim)">${m.next}</div><div><button class="btn btn-s" style="padding:5px 12px;font-size:0.65rem;" onclick="openModEq('${m.id}')">Reservar</button></div></div>`;
+  }).join('');
+  renderCal();renderReservas();
+}
+
+function renderCal(){
+  const wrap=document.getElementById('calWrap');
+  const today=new Date();
+  const days=Array.from({length:7},(_,i)=>{const d=new Date(today);d.setDate(today.getDate()+i);return d;});
+  const dayNames=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  let html=`<div class="calweek"><div class="calhdr"></div>${days.map((d,i)=>`<div class="calhdr" style="${i===0?'color:var(--oro-light);font-weight:500;':''}">${dayNames[d.getDay()]}<br><span style="font-size:0.8rem;">${d.getDate()}</span></div>`).join('')}</div>`;
+  MAQ.forEach(maq=>{
+    html+=`<div class="calweek"><div class="callbl">${maq.ico} ${maq.name.split(' ').slice(0,3).join(' ')}</div>`;
+    days.forEach((d,di)=>{
+      const mires=reservas.some(r=>r.eqId===maq.id&&r.fecha.includes(d.getDate()));
+      let cls='libre',txt='+';
+      if(maq.id==='4'&&di<3){cls='mant';txt='Mant.';}
+      else if(maq.id==='1'&&di===1){cls='ocupado';txt='Ocup.';}
+      else if(maq.id==='6'&&di===0){cls='ocupado';txt='Ocup.';}
+      else if(maq.id==='2'&&di===5){cls='ocupado';txt='Res.';}
+      else if(maq.id==='2'&&di===6){cls='conflicto';txt='CONF.';}
+      else if(mires){cls='mireserva';txt='Yo';}
+      html+=`<div class="cal ${cls} ${di===0?'today':''}" title="${maq.name} · ${d.toLocaleDateString('es-EC')}" onclick="clickCal('${maq.id}',${di},'${cls}')">${txt}</div>`;
+    });
+    html+='</div>';
+  });
+  wrap.innerHTML=html;
+}
+
+function clickCal(eqId,di,cls){if(cls==='libre')openModEq(eqId);}
+
+function renderReservas(){
+  const el=document.getElementById('misRes');
+  el.innerHTML=reservas.map((r,i)=>`<div style="display:flex;align-items:center;gap:16px;padding:12px 14px;background:rgba(74,140,63,0.08);border:1px solid rgba(74,140,63,0.2);border-radius:8px;"><div style="font-size:1.5rem;">🚜</div><div style="flex:1"><div style="font-size:0.78rem;color:var(--crema);">${r.eq}</div><div style="font-size:0.65rem;color:var(--texto-dim);margin-top:2px;">${r.parc} · ${r.motivo}</div></div><div style="text-align:right"><div style="font-size:0.72rem;color:var(--verde-bright);">📅 ${r.fecha}</div><div style="font-size:0.62rem;color:var(--texto-dim);">${r.dias} día(s)</div></div><button class="btn btn-s" style="padding:5px 10px;font-size:0.62rem;color:#e07060;" onclick="cancelRes(${i})">Cancelar</button></div>`).join('');
+  const rc=document.getElementById('resCount');if(rc)rc.textContent=`${reservas.length} confirmadas`;
+  const kr=document.getElementById('kpiReservas');if(kr)kr.textContent=reservas.length;
+}
+
+function cancelRes(i){reservas.splice(i,1);renderMaq();}
+
+// ─── MODAL ───
+function openMod(){
+  document.getElementById('moverlay').classList.add('open');
+  document.getElementById('confBan').style.display='none';
+  document.getElementById('succBan').style.display='none';
+  const d=new Date();document.getElementById('mFecha').value=d.toISOString().split('T')[0];
+}
+function openModEq(id){openMod();document.getElementById('mEq').value=id;chkConf();}
+function closeMod(){document.getElementById('moverlay').classList.remove('open');}
+function chkConf(){
+  const eq=document.getElementById('mEq').value,f=document.getElementById('mFecha').value;
+  const ban=document.getElementById('confBan');
+  ban.style.display=(eq==='2'&&f&&f.includes('2026-02-24'))?'block':'none';
+}
+function confRes(){
+  const eq=document.getElementById('mEq'),pa=document.getElementById('mParc'),f=document.getElementById('mFecha').value,dur=document.getElementById('mDur').value,mot=document.getElementById('mMotivo').value;
+  if(!eq.value||!f){return;}
+  const d=new Date(f+'T12:00:00');
+  const ms=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  reservas.push({eq:eq.options[eq.selectedIndex].text.slice(2).trim(),parc:pa.options[pa.selectedIndex].text.split('—')[0].trim(),fecha:`${d.getDate()} ${ms[d.getMonth()]} ${d.getFullYear()}`,dias:dur,motivo:mot,eqId:eq.value});
+  document.getElementById('succBan').style.display='block';
+  document.getElementById('confBan').style.display='none';
+  setTimeout(()=>{closeMod();renderMaq();},1200);
+}
+
+// ─── OPEN-METEO ───
+let curLat=-1.8541,curLon=-79.9936,curLoc='Daule';
+
+function wIcon(c){
+  if(c===0)return'☀️';if(c<=2)return'⛅';if(c<=3)return'☁️';
+  if(c<=48)return'🌫️';if(c<=67)return'🌧️';if(c<=77)return'❄️';
+  if(c<=82)return'🌦️';if(c<=99)return'⛈️';return'🌤️';
+}
+
+async function fetchOM(lat,lon){
+  const dot=document.getElementById('sdot'),st=document.getElementById('sstatus');
+  dot.className='sdot loading';st.textContent='Consultando API...';
+  try{
+    const url=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,precipitation,weathercode,windspeed_10m&hourly=temperature_2m,precipitation_probability,precipitation,weathercode&daily=precipitation_sum,temperature_2m_max,temperature_2m_min,weathercode&timezone=America%2FGuayaquil&past_days=14&forecast_days=16`;
+    const r=await fetch(url);if(!r.ok)throw new Error();
+    const data=await r.json();
+    dot.className='sdot ok';st.textContent='Open-Meteo · En vivo';
+    return data;
+  }catch{dot.className='sdot err';st.textContent='Sin conexión · Demo';return null;}
+}
+
+async function loadClima(){
+  const data=await fetchOM(curLat,curLon);
+  if(!data){renderClimaDemo();return;}
+  updateClima(data);
+}
+
+function updateClima(data){
+  const cur=data.current,daily=data.daily,hourly=data.hourly;
+  const precHoy=daily.precipitation_sum[14]??0;
+
+  // Dashboard badge & KPI
+  const cb=document.getElementById('climaBadge');
+  if(cb)cb.textContent=`${wIcon(cur.weathercode)} ${cur.temperature_2m}°C · ${precHoy}mm hoy`;
+  const kl=document.getElementById('kpiLluvia');if(kl)kl.innerHTML=`${precHoy}<span class="kpi-unit">mm</span>`;
+  const kll=document.getElementById('kpiLluviaLbl');
+  if(kll){const acc7=daily.precipitation_sum.slice(8,15).reduce((a,b)=>a+(b??0),0).toFixed(1);kll.textContent=`Acum. 7d: ${acc7}mm · Open-Meteo`;}
+
+  // Clima page cards
+  const cc=document.getElementById('clCards');
+  if(cc)cc.innerHTML=`<div class="clcard"><div class="clicon">${wIcon(cur.weathercode)}</div><div class="clval">${cur.temperature_2m}<span class="clunit">°C</span></div><div class="cllbl">Temperatura</div></div><div class="clcard"><div class="clicon">💧</div><div class="clval">${cur.relative_humidity_2m}<span class="clunit">%</span></div><div class="cllbl">Humedad Relativa</div></div><div class="clcard"><div class="clicon">🌧</div><div class="clval">${cur.precipitation}<span class="clunit">mm</span></div><div class="cllbl">Precipitación Actual</div></div><div class="clcard"><div class="clicon">💨</div><div class="clval">${cur.windspeed_10m}<span class="clunit">km/h</span></div><div class="cllbl">Viento</div></div>`;
+
+  const upd=document.getElementById('climaUpd');
+  if(upd){const now=new Date();upd.textContent=`${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')} · ${curLoc}`;}
+  const lb=document.getElementById('locBadge');if(lb)lb.textContent=curLoc;
+
+  // Hourly
+  const hr=document.getElementById('hrow');
+  if(hr){
+    const nh=new Date().getHours();let hh='';
+    for(let i=nh;i<nh+24;i++){
+      const idx=i%24+(i>=24?24:0);
+      const t=hourly.temperature_2m[idx]??'—',p=hourly.precipitation[idx]??0,pp=hourly.precipitation_probability[idx]??0,wc=hourly.weathercode[idx]??0;
+      hh+=`<div class="hcard"><div class="htime">${(i%24).toString().padStart(2,'0')}:00</div><div class="hico">${wIcon(wc)}</div><div class="htemp">${t}°</div><div class="hprec">${p}mm·${pp}%</div></div>`;
+    }
+    hr.innerHTML=hh;
+  }
+
+  // Rain chart
+  const rc=document.getElementById('rchart'),rl=document.getElementById('rlabels');
+  if(rc&&rl){
+    rc.innerHTML='<div class="tline" style="bottom:33.3%;"></div>';rl.innerHTML='';
+    const maxV=Math.max(...daily.precipitation_sum.filter(v=>v!=null),60);
+    const todayIdx=14;
+    daily.precipitation_sum.forEach((v,i)=>{
+      if(v===null)return;
+      const col=document.createElement('div');col.className='rbcol';
+      const pct=Math.max((v/maxV)*100,2);const isFc=i>todayIdx;
+      const color=v>20?(v>35?'var(--rojo)':'var(--amarillo)'):'var(--verde-bright)';
+      const bar=document.createElement('div');bar.className='rbar'+(isFc?' fcast':'');
+      bar.style.height='0';bar.style.background=color;bar.style.borderColor=color;
+      bar.title=`${daily.time[i]}: ${v}mm${isFc?' (pronóstico)':''}`;
+      col.appendChild(bar);rc.appendChild(col);
+      setTimeout(()=>{bar.style.height=pct+'px';},50+i*18);
+      const d2=new Date(daily.time[i]+'T12:00:00');
+      const l=document.createElement('div');l.className='rlbl';
+      l.innerHTML=`<span style="color:${i===todayIdx?'var(--oro-light)':'var(--texto-dim)'}">${i===todayIdx?'Hoy':d2.getDate()+'/'+(d2.getMonth()+1)}</span>`;
+      rl.appendChild(l);
+    });
+  }
+
+  // Lambda
+  const acc14=daily.precipitation_sum.slice(1,15).reduce((a,b)=>a+(b??0),0);
+  const umbral=280,ratio=acc14/umbral;
+  const lam=ratio<0.8?1.05:ratio<1.2?1.00:ratio<1.6?0.75:ratio<2.0?0.50:0.25;
+  const lamCol=lam>=1?'var(--verde-bright)':lam>=0.75?'#f0a060':'#e07060';
+  const msg=lam>=1?'✅ Condiciones favorables. Precipitación en rango normal.':lam>=0.75?'⚠️ Estrés hídrico moderado. Monitorear parcelas críticas.':lam>=0.50?'🔴 Estrés severo. Verificar drenaje urgente.':'🚨 Crítico. Riesgo pérdida total en zonas bajas.';
+  const lce=document.getElementById('lamCalc');
+  if(lce)lce.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;"><div class="lchip"><div class="ll">Precip. acum. 14d</div><div class="lv" style="color:var(--crema)">${acc14.toFixed(0)} mm</div></div><div class="lchip"><div class="ll">Umbral histórico</div><div class="lv" style="color:var(--texto-dim)">${umbral} mm</div></div><div class="lchip"><div class="ll">Ratio</div><div class="lv" style="color:#f0a060">${ratio.toFixed(2)}x</div></div><div class="lchip" style="border-color:${lamCol}40"><div class="ll">λ_clima</div><div class="lv" style="color:${lamCol};font-size:1.3rem;">${lam.toFixed(2)}</div></div></div><div style="margin-top:12px;font-size:0.67rem;color:var(--texto-dim);line-height:1.6;">${msg}</div>`;
+
+  // Cantones comparativa
+  loadCantonesComp();
+}
+
+async function loadCantonesComp(){
+  const el=document.getElementById('canComp');if(!el)return;
+  const locs=[{n:'Daule',lat:-1.8541,lon:-79.9936},{n:'Salitre',lat:-2.0272,lon:-79.7328},{n:'Yaguachi',lat:-2.1181,lon:-79.6897},{n:'Milagro',lat:-2.1347,lon:-79.5872}];
+  el.innerHTML='<div class="loading-st"><div class="spinner"></div>Cargando cantones...</div>';
+  const res=await Promise.all(locs.map(async l=>{
+    try{const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${l.lat}&longitude=${l.lon}&daily=precipitation_sum&timezone=America%2FGuayaquil&past_days=7&forecast_days=1`);const d=await r.json();const acc=d.daily.precipitation_sum.slice(0,7).reduce((a,b)=>a+(b??0),0);return{...l,acc:acc.toFixed(0)};}catch{return{...l,acc:'—'};}
+  }));
+  const maxA=Math.max(...res.map(r=>parseFloat(r.acc)||0),1);
+  el.innerHTML=res.map(r=>{
+    const v=parseFloat(r.acc)||0,pct=Math.min((v/Math.max(maxA,200))*100,100);
+    const col=v>140?'var(--rojo)':v>80?'var(--amarillo)':'var(--verde-bright)';
+    return `<div style="margin-bottom:12px;"><div style="display:flex;justify-content:space-between;font-size:0.72rem;margin-bottom:4px;"><span style="color:var(--crema)">${r.n}</span><span style="color:${col};font-weight:500">${r.acc} mm</span></div><div class="pbar" style="height:6px;"><div class="pfill" style="width:${pct}%;background:${col}"></div></div></div>`;
+  }).join('');
+}
+
+function renderClimaDemo(){
+  const cc=document.getElementById('clCards');
+  if(cc)cc.innerHTML=`<div class="clcard"><div class="clicon">🌧</div><div class="clval">28<span class="clunit">°C</span></div><div class="cllbl">Temperatura (demo)</div></div><div class="clcard"><div class="clicon">💧</div><div class="clval">84<span class="clunit">%</span></div><div class="cllbl">Humedad</div></div><div class="clcard"><div class="clicon">🌧</div><div class="clval">12<span class="clunit">mm</span></div><div class="cllbl">Precipitación</div></div><div class="clcard"><div class="clicon">💨</div><div class="clval">18<span class="clunit">km/h</span></div><div class="cllbl">Viento</div></div>`;
+}
+
+async function selLoc(btn,lat,lon,name){
+  document.querySelectorAll('.locbtn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');curLat=lat;curLon=lon;curLoc=name;
+  const cc=document.getElementById('clCards');if(cc)cc.innerHTML='<div class="clcard" style="grid-column:span 4"><div class="loading-st"><div class="spinner"></div>Cargando '+name+'...</div></div>';
+  const rc=document.getElementById('rchart');if(rc){rc.innerHTML='<div class="tline" style="bottom:33.3%;"></div><div class="loading-st"><div class="spinner"></div></div>';}
+  const data=await fetchOM(lat,lon);
+  if(data)updateClima(data);else renderClimaDemo();
+}
+
+// ─── TOOLTIP ───
+function showTT(e,n,c,est,d,p,r){
+  const t=document.getElementById('tt');
+  document.getElementById('tt-t').textContent=n;document.getElementById('tt-c').textContent=c;
+  document.getElementById('tt-e').textContent=est;document.getElementById('tt-d').textContent=d;
+  document.getElementById('tt-p').textContent=p;document.getElementById('tt-r').textContent=r;
+  t.style.left=(e.clientX+12)+'px';t.style.top=(e.clientY-10)+'px';t.classList.add('vis');
+  setTimeout(()=>t.classList.remove('vis'),3000);
+}
+document.addEventListener('mousemove',e=>{const t=document.getElementById('tt');if(t.classList.contains('vis')){t.style.left=(e.clientX+12)+'px';t.style.top=(e.clientY-10)+'px';}});
+
+// ─── INIT ───
+mkRender('dChain','dLam','arroz');
+mkRender('mChain','mLam','arroz');
+renderParcelas();
+
+const now=new Date();
+const dl=document.getElementById('dateLbl');
+if(dl)dl.textContent=now.toLocaleDateString('es-EC',{weekday:'short',day:'numeric',month:'short',year:'numeric'})+' · '+now.toLocaleTimeString('es-EC',{hour:'2-digit',minute:'2-digit'});
+
+// Auto-load clima for dashboard KPI
+(async()=>{
+  const data=await fetchOM(curLat,curLon);
+  if(data){
+    const p=data.daily.precipitation_sum[14]??0;
+    const kl=document.getElementById('kpiLluvia');if(kl)kl.innerHTML=`${p}<span class="kpi-unit">mm</span>`;
+    const kll=document.getElementById('kpiLluviaLbl');
+    if(kll){const a7=data.daily.precipitation_sum.slice(8,15).reduce((a,b)=>a+(b??0),0).toFixed(1);kll.textContent=`Acum. 7d: ${a7}mm · Open-Meteo`;}
+    const cb=document.getElementById('climaBadge');if(cb)cb.textContent=`${wIcon(data.current.weathercode)} ${data.current.temperature_2m}°C · ${p}mm hoy`;
+  }
+})();
+</script>
+</body>
+</html>
