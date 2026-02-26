@@ -1,12 +1,105 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Agro Guayas</title>
+    <link rel="stylesheet" href="styles.css">
+    <title>Agro-Guayas Dashboard</title>
 </head>
 <body>
-    <h1>Welcome to Agro Guayas</h1>
-    <p>This is the main page for Agro Guayas project.</p>
+    <header>
+        <h1>Agro-Guayas Dashboard</h1>
+        <nav>
+            <ul>
+                <li><a href="#dashboard">Dashboard</a></li>
+                <li><a href="#clima">Clima</a></li>
+                <li><a href="#maquinaria">Maquinaria</a></li>
+                <li><a href="#parcelas">Parcelas</a></li>
+                <li><a href="#markov">Markov</a></li>
+            </ul>
+        </nav>
+    </header>
+    <main>
+        <section id="dashboard">
+            <h2>Dashboard</h2>
+            <p>Welcome to the Agro-Guayas Dashboard!</p>
+        </section>
+        <section id="clima">
+            <h2>Clima</h2>
+            <div id="climateData"></div>
+        </section>
+        <section id="maquinaria">
+            <h2>Maquinaria</h2>
+            <div id="equipmentList"></div>
+        </section>
+        <section id="parcelas">
+            <h2>Parcelas</h2>
+            <div id="parcelData"></div>
+        </section>
+        <section id="markov">
+            <h2>Markov Chains</h2>
+            <div id="markovData"></div>
+        </section>
+    </main>
+    <footer>
+        <p>&copy; 2026 Agro-Guayas. All rights reserved.</p>
+    </footer>
+    <script src="script.js"></script>
 </body>
 </html>
+
+
+<style>
+/* styles.css contents */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+header {
+    background-color: #4CAF50;
+    color: white;
+    padding: 10px 20px;
+}
+nav ul {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+}
+nav ul li {
+    display: inline;
+    margin-right: 10px;
+}
+main {
+    padding: 20px;
+}
+footer {
+    background-color: #4CAF50;
+    color: white;
+    text-align: center;
+    padding: 10px 0;
+}
+</style>
+
+
+<script>
+// script.js contents
+
+// Function to fetch climate data from Open-Meteo API
+async function fetchClimateData() {
+    const response = await fetch('https://api.open-meteo.com/v1/forecast');
+    const data = await response.json();
+    document.getElementById('climateData').innerHTML = JSON.stringify(data);
+}
+
+// Function to navigate to sections
+function navigateTo(section) {
+    const element = document.getElementById(section);
+    if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+    }
+}
+
+// Call fetchClimateData upon loading the page
+fetchClimateData();
+</script>
